@@ -465,6 +465,7 @@
       let countdownValue = 3;
       let isVideoLoaded = false;
       let isDragging = false;
+      let wasPlayingBeforeDrag = false; // 新增：记录拖动前的播放状态
       
       // 显示缓冲提示
       bufferingTip.style.display = 'block';
@@ -492,101 +493,12 @@
         return;
       }
       
-      // 开始加载视频
-      loadVideo(videoUrl);
+      // 设置视频源并开始预加载
+      videoElement.src = videoUrl;
+      videoElement.preload = "auto"; // 确保视频预加载
       
-      // 加载视频函数 - 支持短链接跳转
-      function loadVideo(url) {
-        // 如果是短链接，先获取真实地址
-        if (isShortUrl(url)) {
-          console.log('检测到短链接，正在获取真实地址...');
-          resolveShortUrl(url)
-            .then(realUrl => {
-              console.log('获取到真实地址:', realUrl);
-              setVideoSource(realUrl);
-            })
-            .catch(error => {
-              console.error('短链接解析失败:', error);
-              // 如果短链接解析失败，尝试直接使用短链接
-              setVideoSource(url);
-            });
-        } else {
-          // 直接使用视频链接
-          setVideoSource(url);
-        }
-      }
-      
-      // 判断是否为短链接
-      function isShortUrl(url) {
-        // 常见的短链接域名
-        const shortUrlDomains = [
-          'c8a.cn',
-          'bit.ly',
-          't.cn',
-          'url.cn',
-          'goo.gl',
-          'ow.ly',
-          'tinyurl.com',
-          'is.gd',
-          'v.gd',
-          'mcaf.ee',
-          'suo.im',
-          'dwz.cn'
-        ];
-        
-        const domain = new URL(url).hostname;
-        return shortUrlDomains.some(shortDomain => domain.includes(shortDomain));
-      }
-      
-      // 解析短链接获取真实地址
-      function resolveShortUrl(shortUrl) {
-        return new Promise((resolve, reject) => {
-          // 使用CORS代理解决跨域问题
-          const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-          const targetUrl = shortUrl;
-          
-          fetch(proxyUrl + targetUrl, {
-            method: 'HEAD',
-            redirect: 'follow'
-          })
-          .then(response => {
-            // 获取最终的重定向URL
-            const finalUrl = response.url;
-            
-            // 如果最终URL不是原始短链接，说明有重定向
-            if (finalUrl !== shortUrl) {
-              resolve(finalUrl);
-            } else {
-              // 如果没有重定向，尝试GET请求获取真实地址
-              return fetch(proxyUrl + targetUrl, {
-                method: 'GET',
-                redirect: 'follow'
-              });
-            }
-          })
-          .then(response => {
-            if (response && response.url) {
-              resolve(response.url);
-            } else {
-              reject(new Error('无法解析短链接'));
-            }
-          })
-          .catch(error => {
-            reject(error);
-          });
-        });
-      }
-      
-      // 设置视频源
-      function setVideoSource(url) {
-        videoElement.src = url;
-        videoElement.preload = "auto"; // 确保视频预加载
-        
-        // 开始缓冲视频
-        videoElement.load();
-        
-        console.log('视频URL:', url);
-      }
+      // 开始缓冲视频
+      videoElement.load();
       
       // 监听视频加载进度
       videoElement.addEventListener('progress', function() {
@@ -768,6 +680,12 @@
         e.preventDefault();
         isDragging = true;
         
+        // 记录拖动前的播放状态
+        wasPlayingBeforeDrag = isPlaying;
+        
+        // 暂停视频，避免拖动过程中继续播放
+        videoElement.pause();
+        
         // 隐藏暂停按钮
         pauseButton.style.display = 'none';
         
@@ -814,13 +732,15 @@
         document.removeEventListener('mouseup', stopDrag);
         document.removeEventListener('touchend', stopDrag);
         
-        // 如果视频在播放，继续播放
-        if (isPlaying) {
-          videoElement.play();
-          
-          // 重新设置隐藏进度条的定时器
-          clearTimeout(hideProgressTimer);
-          hideProgressTimer = setTimeout(hideProgressControls, 3000);
+        // 修复：如果拖动前视频在播放，则继续播放
+        if (wasPlayingBeforeDrag) {
+          videoElement.play().then(() => {
+            // 播放成功，重新设置隐藏进度条的定时器
+            clearTimeout(hideProgressTimer);
+            hideProgressTimer = setTimeout(hideProgressControls, 3000);
+          }).catch(error => {
+            console.error('播放失败:', error);
+          });
         }
       }
       
@@ -967,6 +887,8 @@
         errorMessage.style.display = 'block';
         console.error(message);
       }
+      
+      console.log('视频URL:', videoUrl);
     });
   </script>
 </body>
