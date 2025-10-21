@@ -460,6 +460,7 @@
       // 播放状态控制
       let isPlaying = false;
       let hideControlsTimer = null;
+      let hideProgressTimer = null; // 新增：隐藏进度条的定时器
       let countdownTimer = null;
       let countdownValue = 3;
       let isVideoLoaded = false;
@@ -590,9 +591,10 @@
         pauseButton.style.display = 'none';
         
         // 显示进度条和时间显示
-        progressContainer.style.display = 'block';
-        timeDisplay.style.display = 'block';
-        progressThumb.style.display = 'block';
+        showProgressControls();
+        
+        // 3秒后自动隐藏进度条
+        hideProgressTimer = setTimeout(hideProgressControls, 3000);
         
         // 更新进度
         updateProgress();
@@ -603,9 +605,10 @@
         pauseButton.style.display = 'flex';
         
         // 显示进度条和时间显示
-        progressContainer.style.display = 'block';
-        timeDisplay.style.display = 'block';
-        progressThumb.style.display = 'block';
+        showProgressControls();
+        
+        // 清除隐藏进度条的定时器
+        clearTimeout(hideProgressTimer);
         
         // 3秒后自动隐藏暂停按钮
         clearTimeout(hideControlsTimer);
@@ -624,9 +627,10 @@
         pauseButton.style.display = 'none';
         
         // 隐藏进度条和时间显示
-        progressContainer.style.display = 'none';
-        timeDisplay.style.display = 'none';
-        progressThumb.style.display = 'none';
+        hideProgressControls();
+        
+        // 清除隐藏进度条的定时器
+        clearTimeout(hideProgressTimer);
       });
       
       videoElement.addEventListener('timeupdate', function() {
@@ -655,6 +659,15 @@
           const percent = (e.clientX - rect.left) / rect.width;
           videoElement.currentTime = percent * videoElement.duration;
           updateProgress();
+          
+          // 点击进度条时显示控制元素
+          showProgressControls();
+          
+          // 如果正在播放，重新设置隐藏定时器
+          if (isPlaying) {
+            clearTimeout(hideProgressTimer);
+            hideProgressTimer = setTimeout(hideProgressControls, 3000);
+          }
         }
       });
       
@@ -668,6 +681,9 @@
         
         // 隐藏暂停按钮
         pauseButton.style.display = 'none';
+        
+        // 清除隐藏进度条的定时器
+        clearTimeout(hideProgressTimer);
         
         // 添加事件监听
         document.addEventListener('mousemove', onDrag);
@@ -712,6 +728,10 @@
         // 如果视频在播放，继续播放
         if (isPlaying) {
           videoElement.play();
+          
+          // 重新设置隐藏进度条的定时器
+          clearTimeout(hideProgressTimer);
+          hideProgressTimer = setTimeout(hideProgressControls, 3000);
         }
       }
       
@@ -728,9 +748,10 @@
               pauseButton.style.display = 'none';
               
               // 显示进度条和时间显示
-              progressContainer.style.display = 'block';
-              timeDisplay.style.display = 'block';
-              progressThumb.style.display = 'block';
+              showProgressControls();
+              
+              // 3秒后自动隐藏进度条
+              hideProgressTimer = setTimeout(hideProgressControls, 3000);
             })
             .catch(error => {
               showError('播放失败: ' + error.message);
@@ -747,9 +768,10 @@
         pauseButton.style.display = 'flex';
         
         // 显示进度条和时间显示
-        progressContainer.style.display = 'block';
-        timeDisplay.style.display = 'block';
-        progressThumb.style.display = 'block';
+        showProgressControls();
+        
+        // 清除隐藏进度条的定时器
+        clearTimeout(hideProgressTimer);
         
         // 3秒后自动隐藏暂停按钮
         clearTimeout(hideControlsTimer);
@@ -758,6 +780,22 @@
             pauseButton.style.display = 'none';
           }
         }, 3000);
+      }
+      
+      // 显示进度控制元素
+      function showProgressControls() {
+        progressContainer.style.display = 'block';
+        timeDisplay.style.display = 'block';
+        progressThumb.style.display = 'block';
+        fullscreenButton.style.display = 'block';
+      }
+      
+      // 隐藏进度控制元素
+      function hideProgressControls() {
+        progressContainer.style.display = 'none';
+        timeDisplay.style.display = 'none';
+        progressThumb.style.display = 'none';
+        fullscreenButton.style.display = 'none';
       }
       
       // 更新进度条
