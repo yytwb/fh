@@ -321,6 +321,7 @@
       z-index: 98;
       display: none;
       transition: opacity 0.3s;
+      cursor: pointer;
     }
     
     /* 进度条 */
@@ -331,6 +332,37 @@
       width: 0%;
       transition: width 0.2s;
       pointer-events: none;
+      position: relative;
+    }
+    
+    /* 进度条滑块 */
+    .progress-thumb {
+      position: absolute;
+      top: 50%;
+      right: 0;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      transform: translate(50%, -50%);
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      pointer-events: all;
+      display: none;
+      z-index: 99;
+    }
+    
+    /* 缓冲进度 */
+    .buffer-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      width: 0%;
+      pointer-events: none;
+      z-index: -1;
     }
     
     /* 时间显示 */
@@ -382,7 +414,10 @@
   
   <!-- 进度条 -->
   <div class="progress-container" id="progressContainer">
-    <div class="progress-bar" id="progressBar"></div>
+    <div class="buffer-bar" id="bufferBar"></div>
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-thumb" id="progressThumb"></div>
+    </div>
   </div>
   
   <!-- 时间显示 -->
@@ -418,15 +453,17 @@
       const errorMessage = document.getElementById('errorMessage');
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
+      const bufferBar = document.getElementById('bufferBar');
+      const progressThumb = document.getElementById('progressThumb');
       const timeDisplay = document.getElementById('timeDisplay');
       
       // 播放状态控制
       let isPlaying = false;
-      let progressTimer = null;
       let hideControlsTimer = null;
       let countdownTimer = null;
       let countdownValue = 3;
       let isVideoLoaded = false;
+      let isDragging = false;
       
       // 显示缓冲提示
       bufferingTip.style.display = 'block';
@@ -463,6 +500,15 @@
       
       // 监听视频加载进度
       videoElement.addEventListener('progress', function() {
+        // 更新缓冲进度
+        if (videoElement.buffered.length > 0) {
+          const bufferedEnd = videoElement.buffered.end(videoElement.buffered.length - 1);
+          const duration = videoElement.duration;
+          if (duration > 0) {
+            bufferBar.style.width = (bufferedEnd / duration) * 100 + '%';
+          }
+        }
+        
         // 检查视频是否已经有足够的数据可以播放
         if (videoElement.buffered.length > 0 && videoElement.buffered.end(0) > 5) {
           isVideoLoaded = true;
@@ -543,12 +589,13 @@
         videoCover.style.display = 'none';
         pauseButton.style.display = 'none';
         
-        // 隐藏进度条和时间显示
-        progressContainer.style.display = 'none';
-        timeDisplay.style.display = 'none';
+        // 显示进度条和时间显示
+        progressContainer.style.display = 'block';
+        timeDisplay.style.display = 'block';
+        progressThumb.style.display = 'block';
         
-        // 开始更新进度
-        startProgressUpdate();
+        // 更新进度
+        updateProgress();
       });
       
       videoElement.addEventListener('pause', function() {
@@ -558,9 +605,7 @@
         // 显示进度条和时间显示
         progressContainer.style.display = 'block';
         timeDisplay.style.display = 'block';
-        
-        // 停止更新进度
-        stopProgressUpdate();
+        progressThumb.style.display = 'block';
         
         // 3秒后自动隐藏暂停按钮
         clearTimeout(hideControlsTimer);
@@ -581,13 +626,13 @@
         // 隐藏进度条和时间显示
         progressContainer.style.display = 'none';
         timeDisplay.style.display = 'none';
-        
-        // 停止更新进度
-        stopProgressUpdate();
+        progressThumb.style.display = 'none';
       });
       
       videoElement.addEventListener('timeupdate', function() {
-        updateProgress();
+        if (!isDragging) {
+          updateProgress();
+        }
       });
       
       videoElement.addEventListener('error', function() {
@@ -603,6 +648,73 @@
         return false;
       });
       
+      // 进度条点击事件
+      progressContainer.addEventListener('click', function(e) {
+        if (videoElement.duration) {
+          const rect = this.getBoundingClientRect();
+          const percent = (e.clientX - rect.left) / rect.width;
+          videoElement.currentTime = percent * videoElement.duration;
+          updateProgress();
+        }
+      });
+      
+      // 进度条拖拽事件
+      progressThumb.addEventListener('mousedown', startDrag);
+      progressThumb.addEventListener('touchstart', startDrag);
+      
+      function startDrag(e) {
+        e.preventDefault();
+        isDragging = true;
+        
+        // 隐藏暂停按钮
+        pauseButton.style.display = 'none';
+        
+        // 添加事件监听
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('touchmove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchend', stopDrag);
+        
+        // 初始拖动
+        onDrag(e);
+      }
+      
+      function onDrag(e) {
+        if (!isDragging) return;
+        
+        const rect = progressContainer.getBoundingClientRect();
+        let clientX;
+        
+        if (e.type.includes('touch')) {
+          clientX = e.touches[0].clientX;
+        } else {
+          clientX = e.clientX;
+        }
+        
+        let percent = (clientX - rect.left) / rect.width;
+        percent = Math.max(0, Math.min(1, percent)); // 限制在0-1之间
+        
+        if (videoElement.duration) {
+          videoElement.currentTime = percent * videoElement.duration;
+          updateProgress();
+        }
+      }
+      
+      function stopDrag() {
+        isDragging = false;
+        
+        // 移除事件监听
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('touchmove', onDrag);
+        document.removeEventListener('mouseup', stopDrag);
+        document.removeEventListener('touchend', stopDrag);
+        
+        // 如果视频在播放，继续播放
+        if (isPlaying) {
+          videoElement.play();
+        }
+      }
+      
       // 播放视频函数
       function playVideo() {
         if (videoElement.paused) {
@@ -615,12 +727,10 @@
               videoCover.style.display = 'none';
               pauseButton.style.display = 'none';
               
-              // 隐藏进度条和时间显示
-              progressContainer.style.display = 'none';
-              timeDisplay.style.display = 'none';
-              
-              // 开始更新进度
-              startProgressUpdate();
+              // 显示进度条和时间显示
+              progressContainer.style.display = 'block';
+              timeDisplay.style.display = 'block';
+              progressThumb.style.display = 'block';
             })
             .catch(error => {
               showError('播放失败: ' + error.message);
@@ -639,9 +749,7 @@
         // 显示进度条和时间显示
         progressContainer.style.display = 'block';
         timeDisplay.style.display = 'block';
-        
-        // 停止更新进度
-        stopProgressUpdate();
+        progressThumb.style.display = 'block';
         
         // 3秒后自动隐藏暂停按钮
         clearTimeout(hideControlsTimer);
@@ -650,19 +758,6 @@
             pauseButton.style.display = 'none';
           }
         }, 3000);
-      }
-      
-      // 开始更新进度
-      function startProgressUpdate() {
-        progressTimer = setInterval(updateProgress, 200);
-      }
-      
-      // 停止更新进度
-      function stopProgressUpdate() {
-        if (progressTimer) {
-          clearInterval(progressTimer);
-          progressTimer = null;
-        }
       }
       
       // 更新进度条
