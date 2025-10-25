@@ -261,7 +261,7 @@
       background: rgba(0, 0, 0, 0.9);
     }
     
-    /* 关闭按钮 */
+    /* 关闭按钮 - 增大字体 */
     .close-button {
       position: fixed;
       left: 20px;
@@ -272,10 +272,16 @@
       border: none;
       border-radius: 5px;
       padding: 10px 15px;
-      font-size: 16px;
+      font-size: 24px; /* 增大字体 */
+      font-weight: bold;
       cursor: pointer;
       transition: all 0.3s;
       display: none;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     
     .close-button:hover {
@@ -397,6 +403,44 @@
       display: none;
       transition: opacity 0.3s;
     }
+    
+    /* 确认对话框 */
+    .confirm-dialog {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 300;
+      display: none;
+      width: 80%;
+      max-width: 300px;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+    }
+    
+    .confirm-dialog p {
+      margin-bottom: 20px;
+      font-size: 18px;
+    }
+    
+    .confirm-dialog button {
+      background: #f74d75;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 0 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    .confirm-dialog button.cancel {
+      background: #666;
+    }
   </style>
 </head>
 <body>
@@ -456,6 +500,13 @@
   <!-- 关闭按钮 -->
   <button class="close-button" id="closeButton">×</button>
   
+  <!-- 确认对话框 -->
+  <div class="confirm-dialog" id="confirmDialog">
+    <p>确定要退出吗？</p>
+    <button id="confirmExit">确定</button>
+    <button id="cancelExit" class="cancel">取消</button>
+  </div>
+  
   <!-- 错误提示 -->
   <div class="error-message" id="errorMessage"></div>
 
@@ -475,6 +526,9 @@
       const pauseButton = document.getElementById('pauseButton');
       const fullscreenButton = document.getElementById('fullscreenButton');
       const closeButton = document.getElementById('closeButton');
+      const confirmDialog = document.getElementById('confirmDialog');
+      const confirmExit = document.getElementById('confirmExit');
+      const cancelExit = document.getElementById('cancelExit');
       const errorMessage = document.getElementById('errorMessage');
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
@@ -492,6 +546,7 @@
       let isDragging = false;
       let wasPlayingBeforeDrag = false; // 新增：记录拖动前的播放状态
       let isFullscreen = false;
+      let closeRequested = false; // 新增：标记是否已请求关闭
       
       // 显示缓冲提示
       bufferingTip.style.display = 'block';
@@ -576,7 +631,7 @@
         additionalTip.style.display = 'block';
         playButton.style.display = 'flex';
         fullscreenButton.style.display = 'block';
-        closeButton.style.display = 'block';
+        closeButton.style.display = 'flex';
         clickArea.style.display = 'block';
         
         // 如果视频已经加载完成，直接显示播放按钮
@@ -611,13 +666,32 @@
       
       // 关闭按钮事件
       closeButton.addEventListener('click', function() {
-        if (confirm('确定要关闭页面吗？')) {
-          window.close();
-          // 如果window.close()不起作用，尝试其他方法
+        // 如果已经在全屏模式，先退出全屏
+        if (isFullscreen) {
+          exitFullscreen();
+        }
+        
+        // 显示确认对话框
+        confirmDialog.style.display = 'block';
+      });
+      
+      // 确认退出事件
+      confirmExit.addEventListener('click', function() {
+        closeRequested = true;
+        // 尝试关闭窗口
+        window.close();
+        
+        // 如果无法关闭，重定向到空白页
+        setTimeout(function() {
           if (!window.closed) {
             window.location.href = 'about:blank';
           }
-        }
+        }, 100);
+      });
+      
+      // 取消退出事件
+      cancelExit.addEventListener('click', function() {
+        confirmDialog.style.display = 'none';
       });
       
       // 视频事件监听
@@ -835,7 +909,7 @@
         timeDisplay.style.display = 'block';
         progressThumb.style.display = 'block';
         fullscreenButton.style.display = 'block';
-        closeButton.style.display = 'block';
+        closeButton.style.display = 'flex';
       }
       
       // 隐藏进度控制元素
@@ -897,17 +971,22 @@
           isFullscreen = true;
         } else {
           // 退出全屏
-          if (document.exitFullscreen) {
-            document.exitFullscreen();
-          } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-          } else if (document.mozCancelFullScreen) {
-            document.mozCancelFullScreen();
-          } else if (document.msExitFullscreen) {
-            document.msExitFullscreen();
-          }
-          isFullscreen = false;
+          exitFullscreen();
         }
+      }
+      
+      // 退出全屏功能
+      function exitFullscreen() {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+        isFullscreen = false;
       }
       
       // 更新全屏按钮文本
