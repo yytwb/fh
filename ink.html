@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>百草珍酿学习课</title>
+  <title>百草珍酿</title>
   <style>
     * {
       margin: 0;
@@ -94,7 +94,7 @@
       100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
     
-    /* 缓冲提示 - 调整位置 */
+    /* 缓冲提示 */
     .buffering-tip {
       position: fixed;
       top: 25%;
@@ -132,10 +132,10 @@
       margin-top: 10px;
     }
     
-    /* 播放提示 - 继续向上移动 */
+    /* 播放提示 */
     .play-tip {
       position: fixed;
-      top: 25%; /* 继续向上移动 */
+      top: 25%;
       left: 50%;
       transform: translate(-50%, -50%);
       text-align: center;
@@ -156,10 +156,10 @@
       100% { opacity: 0.7; }
     }
     
-    /* 新增提示文字 - 向上移动10% */
+    /* 新增提示文字 */
     .additional-tip {
       position: fixed;
-      bottom: 80px; /* 向上移动10% */
+      bottom: 80px;
       left: 50%;
       transform: translateX(-50%);
       text-align: center;
@@ -193,10 +193,10 @@
       object-fit: contain;
     }
     
-    /* 播放按钮 - 继续向上移动 */
+    /* 播放按钮 */
     .play-button {
       position: fixed;
-      top: 40%; /* 继续向上移动 */
+      top: 40%;
       left: 50%;
       transform: translate(-50%, 0);
       z-index: 99;
@@ -460,12 +460,13 @@
       // 播放状态控制
       let isPlaying = false;
       let hideControlsTimer = null;
-      let hideProgressTimer = null; // 新增：隐藏进度条的定时器
+      let hideProgressTimer = null;
       let countdownTimer = null;
       let countdownValue = 3;
       let isVideoLoaded = false;
       let isDragging = false;
-      let wasPlayingBeforeDrag = false; // 新增：记录拖动前的播放状态
+      let wasPlayingBeforeDrag = false;
+      let resumePlayTimeout = null;
       
       // 显示缓冲提示
       bufferingTip.style.display = 'block';
@@ -495,7 +496,7 @@
       
       // 设置视频源并开始预加载
       videoElement.src = videoUrl;
-      videoElement.preload = "auto"; // 确保视频预加载
+      videoElement.preload = "auto";
       
       // 开始缓冲视频
       videoElement.load();
@@ -680,6 +681,12 @@
         e.preventDefault();
         isDragging = true;
         
+        // 清除可能存在的恢复播放超时
+        if (resumePlayTimeout) {
+          clearTimeout(resumePlayTimeout);
+          resumePlayTimeout = null;
+        }
+        
         // 记录拖动前的播放状态
         wasPlayingBeforeDrag = isPlaying;
         
@@ -732,15 +739,27 @@
         document.removeEventListener('mouseup', stopDrag);
         document.removeEventListener('touchend', stopDrag);
         
-        // 修复：如果拖动前视频在播放，则继续播放
-        if (wasPlayingBeforeDrag) {
-          videoElement.play().then(() => {
-            // 播放成功，重新设置隐藏进度条的定时器
-            clearTimeout(hideProgressTimer);
-            hideProgressTimer = setTimeout(hideProgressControls, 3000);
-          }).catch(error => {
-            console.error('播放失败:', error);
-          });
+        // 如果拖动前视频在播放，则继续播放
+        if (wasPlayingBeforeDrag && videoElement.currentTime < videoElement.duration) {
+          // 使用延迟确保视频已准备好播放
+          resumePlayTimeout = setTimeout(() => {
+            videoElement.play().then(() => {
+              // 播放成功，重新设置隐藏进度条的定时器
+              clearTimeout(hideProgressTimer);
+              hideProgressTimer = setTimeout(hideProgressControls, 3000);
+            }).catch(error => {
+              console.error('播放失败:', error);
+              // 播放失败，显示播放按钮，并更新状态
+              isPlaying = false;
+              playButton.style.display = 'flex';
+              wasPlayingBeforeDrag = false;
+            });
+          }, 100); // 延迟100ms确保视频准备就绪
+        } else {
+          // 如果视频已经结束，我们显示播放按钮
+          isPlaying = false;
+          playButton.style.display = 'flex';
+          wasPlayingBeforeDrag = false;
         }
       }
       
